@@ -1,6 +1,7 @@
 import { HackManager } from '/lib/hackManager'
 import { ServerPool} from '/lib/serverPool'
 import { HACK_LIST } from 'lib/discovery'
+import { BatchManager } from 'lib/batchManager';
 
 const LOG_FILE = "HackManagerErrorLog.txt";
 
@@ -9,7 +10,10 @@ function help(ns) {
     ns.tprint(`
 Start a HackManager to hack a target server.
 
-Usage: run ${ns.getScriptName()} targetServer [--help]
+Usage: run ${ns.getScriptName()} targetServer --batch [--help]
+        
+--batch
+    Use the batch hacking algorithm if set. Otherwise, use proto batch.
     `.trimEnd());
 }
 
@@ -17,7 +21,8 @@ Usage: run ${ns.getScriptName()} targetServer [--help]
 export async function main(ns) {
     const flagData = ns.flags([
         ['help', false],
-        ['target', ""]
+        ['target', ""],
+        ['batch', false]
     ])
     
     const target = flagData._[0];
@@ -32,14 +37,23 @@ export async function main(ns) {
 
     const followerServers = JSON.parse(ns.read(HACK_LIST));
     const serverPool = new ServerPool(ns, followerServers);
-    const hackManager = new HackManager(ns, serverPool, target);
-    ns.print("Starting the manager...");
+    let hackManager;
+    if (flagData.batch) {
+        hackManager = new BatchManager(ns, serverPool, target);
+        ns.print("Starting batch hack manager...")
+    } else {
+        hackManager = new HackManager(ns, serverPool, target);
+        ns.print("Starting the manager...");
+    }
     try {
         await hackManager.run();
     } 
     catch(e) {
-        ns.write(LOG_FILE, `${new Date} Hack Manager\n[${target}]: ${e.stack}`, "a");
+        ns.write(LOG_FILE, `${new Date} Hack Manager For [${target}]:\n`, "a");
+        ns.write(LOG_FILE, `${e.stack}\n`, "a");
+        ns.write(LOG_FILE, `${e.toString()}\n`, "a");
         ns.write(LOG_FILE, '\n', "a");
+        ns.tail();
         throw e;
     }
 }

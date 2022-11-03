@@ -22,6 +22,7 @@ export async function main(ns) {
 	while (true) {
     const maxMoney = ns.getServerMaxMoney(server);
     const minSec = ns.getServerMinSecurityLevel(server);
+    const requiredHackLevel = ns.getServerRequiredHackingLevel(server);
     let money = ns.getServerMoneyAvailable(server);
     if (money === 0) money = 1;
     const sec = ns.getServerSecurityLevel(server);
@@ -40,6 +41,7 @@ export async function main(ns) {
     ns.clearLog(server);
     ns.print(`${server}:`);
     ns.print(` root____: ${ns.hasRootAccess(server)}`);
+    ns.print(` req_hack: ${requiredHackLevel}`);
     ns.print(` $_______: ${ns.nFormat(money, "$0.000a")} / ${ns.nFormat(maxMoney, "$0.000a")} (${(money / maxMoney * 100).toFixed(2)}%)`);
     ns.print(` security: ${sec.toFixed(2)} (+${(sec - minSec).toFixed(2)})`);
     ns.print(` hack____: ${(ns.hackAnalyzeChance(server) * 100).toFixed(2)}% ${ns.tFormat(ns.getHackTime(server))} (t=${Math.ceil(ns.hackAnalyzeThreads(server, money))})`);

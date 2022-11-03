@@ -6,7 +6,7 @@ function help(ns) {
     ns.tprint(`
 Starts Hack Managers based on a file.
 
-Usage: run ${ns.getScriptName()} [targetFile] --restart
+Usage: run ${ns.getScriptName()} [targetFile] [--restart] [--batch]
         
 targetFile
 
@@ -15,6 +15,10 @@ targetFile
 --restart
 
     Kills all running hack managers to restart them.
+        
+--batch 
+
+    Use the batch algorithm.
     `.trimEnd());
 }
 
@@ -22,7 +26,8 @@ targetFile
 export async function main(ns) {
     const flagData = ns.flags([
         ['help', false],
-        ['restart', false]
+        ['restart', false],
+        ['batch', false]
     ])
     
     const targetFile = flagData._[0] ?? TARGET_FILE;
@@ -38,7 +43,8 @@ export async function main(ns) {
     const targets = JSON.parse(ns.read(targetFile));
     
     targets.forEach((server) => {
-        let runningScript = ns.getRunningScript(HACK_MANAGER_START_SCRIPT, ns.getHostname(), server);
+        let runningScript = ns.getRunningScript(HACK_MANAGER_START_SCRIPT, ns.getHostname(), server) ||
+            ns.getRunningScript(HACK_MANAGER_START_SCRIPT, ns.getHostname(), server, '--batch');
 
         if (flagData.restart && runningScript) {
             if (!ns.kill(runningScript.pid)) {
@@ -53,10 +59,17 @@ export async function main(ns) {
                 ns.tprint(`Skipping target '${server}' since no root access`);
                 return
             }
-            if (ns.run(HACK_MANAGER_START_SCRIPT, 1, server) < 0) {
-                throw new Error(`Failed to start for target '${server}'`);
+            if (flagData.batch) {
+                if (ns.run(HACK_MANAGER_START_SCRIPT, 1, server, '--batch') < 0) {
+                    throw new Error(`Failed to start for target '${server}'`);
+                }
+                ns.tprint(`Deployed Batch Manager for target '${server}'`);
+            } else {
+                if (ns.run(HACK_MANAGER_START_SCRIPT, 1, server) < 0) {
+                    throw new Error(`Failed to start for target '${server}'`);
+                }
+                ns.tprint(`Deployed Manager for target '${server}'`);
             }
-            ns.tprint(`Deployed for target '${server}'`);
         }
     });
     

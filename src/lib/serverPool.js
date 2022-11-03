@@ -15,10 +15,15 @@ export class ServerPool {
 		this.servers = servers;
 		this.stagger = stagger;
 		this.logging = false;
+		this.sharding = true;
 	}
 	
 	setLogging(enabled) {
 		this.logging = enabled;
+	}
+	
+	setSharding(enabled) {
+		this.sharding = enabled;
 	}
 	
 	log(msg) {
@@ -108,6 +113,18 @@ export class ServerPool {
 		let remainingThreads = threads;
 		let threadsToTryToDeploy = threads;
 		const manifest = {};
+
+		if (!this.sharding) {
+			const server = this.servers.find((host) => {
+				return this.getServerRemainingRam(host) > (scriptRam * threadsToTryToDeploy);
+			});
+			if (!server) {
+				return [false, manifest];
+			} 
+
+			manifest[server] = threadsToTryToDeploy;
+			return [true, manifest];
+		}
 
 		while (remainingThreads > 0) {
 			const server = this.servers.find((host) => {

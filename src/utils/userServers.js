@@ -5,14 +5,21 @@ function help(ns) {
     ns.tprint(`
 Utility to buy user servers.
 
-Usage: run ${ns.getScriptName()} --ram number [--upgrade] [--help]
+Usage: run ${ns.getScriptName()} (--ram number | --factor) [--upgrade] [--help]
 		
 --ram
 	The amount of RAM to buy for new/upgraded servers.
+		
+--factor
+	Increase server ram by a factor.
 
 --upgrade
 	If set, will upgrade existing servers. Otherwise, will only buy servers.
+
+--dryRun
+	If set, will simulate actions to take and their total cost.
     `.trimEnd());
+	
 }
 
 function getCurrentMoney(ns) {
@@ -24,7 +31,9 @@ export async function main(ns) {
 	const flags = ns.flags([
 		["help", false],
 		["ram", 0],
+		["factor", 0],
 		["upgrade", false],
+		["dryRun", false],
 	]);
 
     if (flags.help) {
@@ -32,37 +41,69 @@ export async function main(ns) {
         ns.exit();
     }
 	
-	if (!flags.ram) {
+	if (!flags.ram && !flags.factor) {
+		help(ns);
+		ns.exit();
+	}
+	
+	if (flags.ram && flags.factor) {
 		help(ns);
 		ns.exit();
 	}
 
-	ns.tprint(`Will ${flags.upgrade ? 'upgrade and buy' : 'buy'} servers to ${flags.ram} gb`);
-
 	let servers = ns.getPurchasedServers();
-	const ram = flags.ram;
+	let ram;
+	if (flags.ram) {
+		ram = flags.ram;
+	} else {
+		const maxRam = servers.reduce((prevMax, currHostname) => {
+			return Math.max(ns.getServerMaxRam(currHostname), prevMax);
+		}, 0);
+		ram = maxRam * flags.factor;
+	}
+	const isDryRun = flags.dryRun;
+	let totalCost = 0;
+
+	ns.tprint(`Action: ${flags.upgrade ? 'upgrade and buy' : 'buy'} servers to ${ns.nFormat(ram*1e9, "0.00b")}`);
 
 	if (servers.length < ns.getPurchasedServerLimit()) {
 		ns.tprint("Need to purchase servers.");
 
 		for (let i = 0; i < ns.getPurchasedServerLimit(); i++) {
 			const serverName = `${SERVER_PREFIX}-${i}`;
+			const serverCost = ns.getPurchasedServerCost(ram);
 			if (ns.serverExists(serverName)) continue;
-			while (getCurrentMoney(ns) < ns.getPurchasedServerCost(ram)) await ns.sleep(30000);
+			
+			if (isDryRun) {
+				ns.tprint(`Would purchase server '${serverName}' for \$${ns.nFormat(serverCost, "$0.00a")}`);				
+			} else {
+				while (getCurrentMoney(ns) < serverCost) await ns.sleep(30000);
 
-			ns.print(`Purchasing server ${serverName}`);
-			ns.purchaseServer(serverName, ram);
+				ns.tprint(`Purchasing server ${serverName} for \$${serverCost}`);
+				ns.purchaseServer(serverName, ram);
+			}
+			totalCost += serverCost;
 		}
 		servers = ns.getPurchasedServers();
 	}
 
 	if (flags.upgrade) {
-		ns.tprint("Upgrading Servers.")
-
 		for (const host of servers) {
-			if (ns.getServerMaxRam(host) < ram) {
-				ns.print(`Upgrading ${host}`);
-				while (getCurrentMoney(ns) < ns.getPurchasedServerCost(ram)) await ns.sleep(30000);
+			
+			const serverRam = ns.getServerMaxRam(host);
+
+			if (serverRam >= ram) {
+				ns.tprint(`Not upgrading ${host} at ${serverRam}Gb`);
+				continue;
+			}
+			
+			const serverCost = ns.getPurchasedServerCost(ram);
+
+			if (isDryRun) {
+				ns.tprint(`Would upgrade ${host} at ${serverRam}Gb for ${ns.nFormat(serverCost, "$0.00a")}`);
+			} else {
+				ns.tprint(`Upgrading ${host} at ${serverRam}Gb`);
+				while (getCurrentMoney(ns) < serverCost) await ns.sleep(30000);
 
 				const runningScripts = ns.ps(host);
 				ns.killall(host);
@@ -84,11 +125,14 @@ export async function main(ns) {
 					}
 				})
 				ns.print(`Restored scripts on ${host}`);
-			} else {
-				ns.print(`Not upgrading ${host}`);
 			}
+			
+			totalCost += serverCost;
 		}
 	}
 
-	ns.print(`Done.`);
+	ns.tprint(`Total Cost: ${ns.nFormat(totalCost, "$0.000a")}`);
+	if (isDryRun) {
+		ns.tprint(`Would require waiting: ${totalCost > ns.getServerMoneyAvailable('home') ? "YES" : "NO"}`);
+	}
 }

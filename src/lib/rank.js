@@ -59,7 +59,7 @@ export function getServerRankings(ns) {
             cycleTime
         })
     })
-    .filter(i => currPlayerHackLevel > i.hackLevel / 3)
+    .filter(i => currPlayerHackLevel > i.hackLevel)
     .filter(i => i.maxMoney > 0);
     
     const maxMoneyStandardScores = getStandardScore(serversInfo.map(i => i.maxMoney));
@@ -76,6 +76,13 @@ export function getServerRankings(ns) {
     }))
     
     return scoredServers.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Get the hostnames of servers ranked by desirability to hack.
+ */
+export function getServerHostnameRankings(ns) {
+    return getServerRankings(ns).map(s => s.hostname);
 }
 
 /**

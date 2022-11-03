@@ -35,7 +35,7 @@ export class HackManager {
                 const weakTime = this.ns.getWeakenTime(this.target);
                 this.ns.print(`Launching ${weakenThreads} threads of ${optimalThreads} required threads`);
                 await this.serverPool.deploy('/lib/weaken.js', weakenThreads, this.target);
-                await this.logSleep(weakTime + 100);
+                await this.logSleep(weakTime + 1000);
             }
             else if (currentMoney < maxMoney) {
                 this.ns.print(`⏫ Current \$${currentMoney} < Max \$${maxMoney}. Growing...`);
@@ -46,7 +46,7 @@ export class HackManager {
                 const growTime = this.ns.getGrowTime(this.target);
                 this.ns.print(`Launching ${growThreads} threads of ${optimalThreads} required threads`);
                 await this.serverPool.deploy('/lib/grow.js', growThreads, this.target);
-                await this.logSleep(growTime + 100);
+                await this.logSleep(growTime + 1000);
             }
             else {
                 this.ns.print(`💰 Hacking ${this.hackAmount * 100}%...`);
@@ -56,7 +56,7 @@ export class HackManager {
                 const hackTime = this.ns.getHackTime(this.target);
                 this.ns.print(`Launching ${hackThreads} threads of ${optimalThreads} required threads`);
                 await this.serverPool.deploy('/lib/hack.js', hackThreads, this.target);
-                await this.logSleep(hackTime + 100);
+                await this.logSleep(hackTime + 1000);
             }
         }
     }
