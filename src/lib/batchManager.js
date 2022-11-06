@@ -1,5 +1,7 @@
 import { ServerPool } from 'lib/serverPool';
 import { GROW_SCRIPT, HACK_SCRIPT, WEAKEN_SCRIPT } from 'lib/constants';
+import { printTable } from 'lib/table';
+import { Color, withColor } from 'lib/print';
 
 /** @typedef {import('../.').NS} NS*/
     
@@ -14,6 +16,143 @@ import { GROW_SCRIPT, HACK_SCRIPT, WEAKEN_SCRIPT } from 'lib/constants';
  * @prop {ScriptInfo} grow
  * @prop {ScriptInfo} secondWeaken
  */
+ 
+ /** @enum {string} */
+const ManagerStatus = {
+    Preparing: "Preparing",
+    Batching: "Batching",
+    Recovering: "Recovering"
+}
+
+class BatchManagerDashboard {
+    /**
+     * @param {NS} ns
+     * @param {string} target
+     */
+    constructor(ns, target) {
+        this.ns = ns;
+        this.target = target;
+        
+        /** @type {number} */
+        this.batchNumber = 0;
+        /** @type {ManagerStatus} */
+        this.status = ManagerStatus.Preparing;
+        /** @type {number} */
+        this.numRecovery = 0;
+        /** @type {HWGWInfo} */
+        this.batchInfo;
+        /** @type {number} */
+        this.wakeUp = 0;
+    }
+    
+    setSleep(duration) {
+        this.wakeUp = Date.now() + duration;
+    }   
+    
+    getColoredStatus() {
+        switch (this.status) {
+            case ManagerStatus.Batching:
+                return {
+                    value: "Batching",
+                    color: Color.Green
+                }
+            case ManagerStatus.Preparing:
+                return {
+                    value: "Preparing",
+                    color: Color.Yellow
+                }
+            case ManagerStatus.Recovering:
+                return {
+                    value: "Recovering",
+                    color: Color.Red
+                }
+        }
+    }
+    
+    /**
+     * Update the dashboard in log tail window.
+     */
+    update() {
+        this.ns.clearLog();
+        
+        const ns = this.ns;
+        const target = this.target;
+
+        const currentMoney = ns.getServerMoneyAvailable(target);
+        const formattedCurrentMoney = ns.nFormat(currentMoney, "$0.00a");
+        const maxMoney = ns.getServerMaxMoney(target);
+        const formattedMaxMoney = ns.nFormat(maxMoney, "$0.00a");
+        const moneyPercent = ns.nFormat(currentMoney / maxMoney, "0.00%")
+        
+        const currentSecurity = ns.getServerSecurityLevel(target);
+        const formattedCurrentSecurity = ns.nFormat(currentSecurity, "0.00");
+        const minSecurity = ns.getServerMinSecurityLevel(target);
+        const formattedMinSecurity = ns.nFormat(minSecurity, "0.00");
+        const deltaSecurity = ns.nFormat(currentSecurity - minSecurity, "0.00")
+        
+        const data = [];
+
+        data.push({
+            label: "Batch #",
+            value: this.batchNumber
+        })
+
+        data.push({
+            label: "Money",
+            value: `${formattedCurrentMoney} / ${formattedMaxMoney} (${moneyPercent})`
+        })
+        
+        data.push({
+            label: "Security",
+            value: `${formattedCurrentSecurity} / ${formattedMinSecurity} (+${deltaSecurity})`,
+        })
+        
+        data.push({
+            label: "Status",
+            value: this.getColoredStatus()
+        })
+        
+        data.push({
+            label: "# of Recoveries",
+            value: this.numRecovery
+        })
+        
+        if (this.batchInfo) {
+            const hackDelay = ns.tFormat(this.batchInfo.hack.delay, true);
+            const firstWeakenDelay = ns.tFormat(this.batchInfo.firstWeaken.delay, true);
+            const growDelay = ns.tFormat(this.batchInfo.grow.delay, true);
+            const secondWeakenDelay = ns.tFormat(this.batchInfo.secondWeaken.delay, true);
+
+            data.push({
+                label: "Hack",
+                value: `${this.batchInfo.hack.numThreads} threads @ ${hackDelay} delay`
+            })
+            
+            data.push({
+                label: "First Weaken",
+                value: `${this.batchInfo.firstWeaken.numThreads} threads @ ${firstWeakenDelay} delay`
+            })
+            
+            data.push({
+                label: "Grow",
+                value: `${this.batchInfo.grow.numThreads} threads @ ${growDelay} delay`
+            })
+
+            data.push({
+                label: "Second Weaken",
+                value: `${this.batchInfo.secondWeaken.numThreads} threads @ ${secondWeakenDelay} delay`
+            })
+        }
+
+        data.push({
+            label: "Wake up at:",
+            value: `${new Date(this.wakeUp).toLocaleTimeString()}`
+        })
+        
+        ns.print(`Batch Hack Manager | Target: ${this.target}`);
+        printTable(this.ns, data, {showHeader: false});
+    }
+}
     
 /**
  * Hacking Manager using the batch algorithm.
@@ -39,10 +178,13 @@ export class BatchManager {
         this.hackAmountRatio = hackAmountRatio;
         /** @type {number} */
         this.executionBuffer = executionBuffer;
+        
+        this.dashboard = new BatchManagerDashboard(ns, target);
     }
 
     async logSleep(time) {
-        this.ns.print(`Sleeping for ${(time / 1000).toFixed(2)}s`);
+        this.dashboard.setSleep(time);
+        this.dashboard.update();
         await this.ns.sleep(time);
     }
     
@@ -55,7 +197,6 @@ export class BatchManager {
         const hackAmount = this.ns.getServerMaxMoney(this.target) * this.hackAmountRatio;
         const singleThreadWeakenEffect = this.ns.weakenAnalyze(1);
 
-        this.ns.print(this.target);
         // Calculate thread requirements
         let hackThreads = Math.ceil(
           this.ns.hackAnalyzeThreads(this.target, hackAmount)
@@ -122,8 +263,6 @@ export class BatchManager {
      * Gets the server to max money and min security.
      */
     async prepareServer() {
-        this.ns.print("⚙ Preparing server.")
-
         while (
           this.ns.getServerSecurityLevel(this.target) >
           this.ns.getServerMinSecurityLevel(this.target)
@@ -133,9 +272,6 @@ export class BatchManager {
             const currentSec = this.ns.getServerSecurityLevel(this.target);
             const minSec = this.ns.getServerMinSecurityLevel(this.target);
             const weakenThreads = Math.ceil((currentSec - minSec) / singleThreadWeakenEffect);
-
-            this.ns.print(`📛 Current Sec ${currentSec} > Min Sec ${minSec}.`);
-            this.ns.print(`Weakening with ${weakenThreads} threads.`);
 
             await this.launchWeaken(weakenThreads, 0);
             await this.logSleep(this.executionBuffer + weakenTime);
@@ -150,9 +286,6 @@ export class BatchManager {
             const growthRatio = maxMoney / currentMoney;
             const growThreads = Math.ceil(this.ns.growthAnalyze(this.target, growthRatio));
 
-            this.ns.print(`⏫ Current \$${currentMoney} < Max \$${maxMoney}.`);
-            this.ns.print(`Growing with ${growThreads} threads.`);
-            
             await this.launchGrow(growThreads, 0);
             await this.logSleep(this.executionBuffer + growTime);
         }
@@ -168,41 +301,39 @@ export class BatchManager {
             const minSec = this.ns.getServerMinSecurityLevel(this.target);
             const weakenThreads = Math.ceil((currentSec - minSec) / singleThreadWeakenEffect);
 
-            this.ns.print(`📛 Current Sec ${currentSec} > Min Sec ${minSec}.`);
-            this.ns.print(`Weakening with ${weakenThreads} threads.`);
-
             await this.launchWeaken(weakenThreads, 0);
             await this.logSleep(this.executionBuffer + weakenTime);
         }
-        this.ns.print("⚙ Done Preparing server.");
     }
 
     async run() {
+        this.dashboard.status = ManagerStatus.Preparing;
         await this.prepareServer();
 
         const batchInfo = this.getBatchInfo();            
+        this.dashboard.batchInfo = batchInfo;
+
         for (let i = 0;;i++) {
-            this.ns.print(`
-Batch #${i}
------------
-Hack: ${batchInfo.hack.numThreads} threads in ${batchInfo.hack.delay}ms
-Weaken: ${batchInfo.firstWeaken.numThreads} threads in ${batchInfo.firstWeaken.delay}ms
-Grow: ${batchInfo.grow.numThreads} threads in ${batchInfo.grow.delay}ms
-Weaken: ${batchInfo.secondWeaken.numThreads} threads in ${batchInfo.secondWeaken.delay}ms
-            `.trim())
-            
             await this.launchHack(batchInfo.hack.numThreads, batchInfo.hack.delay);
             await this.launchWeaken(batchInfo.firstWeaken.numThreads, batchInfo.firstWeaken.delay);
             await this.launchGrow(batchInfo.grow.numThreads, batchInfo.grow.delay);
             await this.launchWeaken(batchInfo.secondWeaken.numThreads, batchInfo.secondWeaken.delay);
             
-            await this.logSleep(this.executionBuffer);
+            if (i % 10 === 0) {
+                this.dashboard.status = ManagerStatus.Batching;
+                this.dashboard.batchNumber = i;
+                await this.logSleep(this.executionBuffer);
+            } else {
+                await this.ns.sleep(this.executionBuffer);
+            }
             
             // Fix any drift issues
             if (
                 (this.ns.getServerSecurityLevel(this.target) > this.ns.getServerMinSecurityLevel(this.target) * 1.5)
                 || (this.ns.getServerMoneyAvailable(this.target) < this.ns.getServerMaxMoney(this.target) * 0.25)
             ) {
+                this.dashboard.status = ManagerStatus.Recovering;
+                this.dashboard.numRecovery++;
                 await this.prepareServer();
             }
         }

@@ -1,6 +1,14 @@
+import { Color, withColor } from "lib/print";
+
 /** @typedef {import("../.").NS} NS*/
     
-/** @typedef {string[]} Row */
+/**
+ * @typedef StyledCell 
+ * @prop {Color} color
+ * @prop {any} value
+ */
+/** @typedef {string|StyledCell} Cell */
+/** @typedef {Cell[]} Row */
 /** @typedef {Row[]} Rows */
     
 
@@ -11,8 +19,29 @@
  */
 function transformDataToRows(data) {
     const rows = data.map(record => Object.values(record));
-    const transformedRows = rows.map(row => row.map(s => s.toString()));
-    return transformedRows;
+    return rows;
+}
+
+/**
+ * @param {Cell} cell
+ */
+function getCellValue(cell) {
+    if (typeof cell === "object" && cell.value) {
+        return cell.value;
+    } else {
+        return cell.toString();
+    }
+}
+
+/**
+ * @param {Cell} cell
+ */
+function getCellColor(cell) {
+    if (typeof cell === "object" && cell.color) {
+        return cell.color;
+    } else {
+        return null;
+    }
 }
     
 /**
@@ -23,8 +52,9 @@ function transformDataToRows(data) {
 function getColumnLengths(header, rows) {
     const columnLengths = header.map(s => s.length);
     rows.forEach((row) => {
-        row.forEach((value, index) => {
-            columnLengths[index] = Math.max(columnLengths[index], value.length)
+        row.forEach((cell, index) => {
+            const cellValue = getCellValue(cell);
+            columnLengths[index] = Math.max(columnLengths[index], cellValue.length);
         });
     });
     return columnLengths;
@@ -37,14 +67,22 @@ function getColumnLengths(header, rows) {
  * @param {number[]} columnLengths
  */
 function printRow(ns, row, columnLengths) {
-    const rowString = row.reduce((prevString, columnString, index) => {
+    const rowString = row.reduce((prevString, cell, index) => {
         const padding = columnLengths[index];
+        const cellValue = getCellValue(cell);
+        const cellColor = getCellColor(cell);
+
+        let printString = cellValue.padStart(padding);
+        if (cellColor) {
+            printString = withColor(printString, cellColor);
+        }
+
         if (index === 0) {
-            return `│ ${columnString.padStart(padding)}`
+            return `│ ${printString}`
         } else if (index === row.length - 1) {
-            return `${prevString} │ ${columnString.padStart(padding)} │`
+            return `${prevString} │ ${printString} │`
         } else {
-            return `${prevString} │ ${columnString.padStart(padding)}`
+            return `${prevString} │ ${printString}`
         }
     }, "");
     ns.print(rowString);
@@ -95,12 +133,23 @@ function printBottomBorder(ns, columnLengths) {
 }
 
 /**
+ * @typedef Options
+ * @prop {boolean} showHeader
+ */
+    
+/** @type {Options} */
+const DEFAULT_OPTIONS = {
+    showHeader: true
+}
+
+/**
  * Pretty print a table to the logs.
  * Header is inferred from first object.
  * @param {NS} ns
  * @param {any[]} data
+ * @param {Options?} options
  */
-export function printTable(ns, data) {
+export function printTable(ns, data, options = DEFAULT_OPTIONS) {
     if (data.length === 0) return;
 
     const header = Object.keys(data[0]);
@@ -108,8 +157,12 @@ export function printTable(ns, data) {
     const columnLengths = getColumnLengths(header, rows);
 
     printTopBorder(ns, columnLengths);
-    printRow(ns, header, columnLengths);
-    printDivider(ns, columnLengths);
+    
+    if (options?.showHeader) {
+        printRow(ns, header, columnLengths);
+        printDivider(ns, columnLengths);
+    }
+
     rows.forEach(row => {
         printRow(ns, row, columnLengths);
     });
@@ -140,4 +193,19 @@ export function main(ns) {
     
     ns.tail();
     printTable(ns, data);
+    
+    const data2 = [        
+        {
+            label: "money",
+            value: {
+                color: Color.Red,
+                value: "$1001"
+            }
+        },
+        {
+            label: "Some Value",
+            value: "Banana"
+        },
+    ]
+    printTable(ns, data2, {showHeader: false});
 }

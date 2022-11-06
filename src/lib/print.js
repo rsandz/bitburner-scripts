@@ -1,6 +1,7 @@
 /** @typedef {import('../.').NS} NS*/
     
-const Color = {
+/** @enum ${string} */
+export const Color = {
     White: "\u001b[38;5;250m",
     Blue: "\u001b[38;5;116m",
     Green: "\u001b[38;5;78m",
@@ -15,5 +16,5 @@ const Color = {
  * @param {Color} color
  */
 export function withColor(text, color) {
-    return `${color}${text}${color.Reset}`;
+    return `${color}${text}${Color.Reset}`;
 }
