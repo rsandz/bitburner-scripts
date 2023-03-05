@@ -31,9 +31,10 @@ export class MetricsManager {
         this.log.info(`Using port ${MetricsManager.PORT}`);
 
         while (true) {
-            const data = this.ns.readPort(MetricsManager.PORT);
 
-            if (data !== EMPTY_PORT_STRING) {
+            do {
+                const data = this.ns.readPort(MetricsManager.PORT);
+            } while (data !== EMPTY_PORT_STRING) {
                 this.log.info(`Received ${data.length} bytes of data.`);
                 this.metricsLogger.info(data);
             }
@@ -98,6 +99,7 @@ export class MetricsClient {
             });
         } else {
             this.buffer[operation] = metrics;
+            this.buffer[operation].timestamp = new Date().toISOString();
         }
     }
 
