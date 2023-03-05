@@ -31,12 +31,12 @@ export class MetricsManager {
         this.log.info(`Using port ${MetricsManager.PORT}`);
 
         while (true) {
-            let data;
-            do {
-                data = this.ns.readPort(MetricsManager.PORT);
-            } while (data !== EMPTY_PORT_STRING) {
-                this.log.info(`Received ${data.length} bytes of data.`);
-                this.metricsLogger.info(data);
+            let portData;
+            portData = this.ns.readPort(MetricsManager.PORT);
+            while (portData !== EMPTY_PORT_STRING) {
+                this.log.info(`Received ${portData.length} bytes of data.`);
+                this.metricsLogger.info(portData);
+                portData = this.ns.readPort(MetricsManager.PORT);
             }
             
             await this.ns.sleep(MetricsManager.POLL_PERIOD);
@@ -78,8 +78,11 @@ export class MetricsClient {
             await this.flushMetrics();
         }
         const bindedReport = (metrics) => this.report(operation, metrics);
-        await instrumentedFunction(bindedReport);
-        await this.flushMetrics();
+        try {
+            await instrumentedFunction(bindedReport);
+        } finally {
+            await this.flushMetrics();
+        }
     }
 
     /**
