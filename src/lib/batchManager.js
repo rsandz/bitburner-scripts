@@ -1,5 +1,5 @@
 import { ServerPool } from 'lib/serverPool';
-import { GROW_SCRIPT, HACK_SCRIPT, WEAKEN_SCRIPT } from 'lib/constants';
+import { GROW_SCRIPT, HACK_SCRIPT, MONEY_DRIFT_THRESHOLD, SECURITY_DRIFT_THRESHOLD, WEAKEN_SCRIPT } from 'lib/constants';
 import { printTable } from 'lib/table';
 import { Color, withColor } from 'lib/print';
 
@@ -369,8 +369,8 @@ export class BatchManager {
             
             // Fix any drift issues
             if (
-                (this.ns.getServerSecurityLevel(this.target) > this.ns.getServerMinSecurityLevel(this.target) * 1.5)
-                || (this.ns.getServerMoneyAvailable(this.target) < this.ns.getServerMaxMoney(this.target) * 0.25)
+                (this.ns.getServerSecurityLevel(this.target) > this.ns.getServerMinSecurityLevel(this.target) * SECURITY_DRIFT_THRESHOLD)
+                || (this.ns.getServerMoneyAvailable(this.target) < this.ns.getServerMaxMoney(this.target) * MONEY_DRIFT_THRESHOLD)
             ) {
                 this.dashboard.status = ManagerStatus.Recovering;
                 this.dashboard.batchNumber = i;

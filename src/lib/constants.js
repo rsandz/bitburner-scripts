@@ -3,6 +3,10 @@ export const PLAYER_SERVER_PREFIX = "pserv";
 
 export const HACK_TARGETS_LIST = 'targetList.txt';
 
+// Thresholds for fixing drift
+export const SECURITY_DRIFT_THRESHOLD = 1.5;
+export const MONEY_DRIFT_THRESHOLD = 0.5;
+
 // Server Ranking Config
 export const MAX_MONEY_WEIGHT = 1.5;
 export const MIN_SECURITY_WEIGHT = -1.0;
