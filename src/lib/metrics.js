@@ -1,4 +1,4 @@
-import { FileHandler, Logger } from "lib/log";
+import { FileHandler, Logger } from "/lib/log";
 
 const EMPTY_PORT_STRING = "NULL PORT DATA";
 
@@ -31,9 +31,9 @@ export class MetricsManager {
         this.log.info(`Using port ${MetricsManager.PORT}`);
 
         while (true) {
-
+            let data;
             do {
-                const data = this.ns.readPort(MetricsManager.PORT);
+                data = this.ns.readPort(MetricsManager.PORT);
             } while (data !== EMPTY_PORT_STRING) {
                 this.log.info(`Received ${data.length} bytes of data.`);
                 this.metricsLogger.info(data);
