@@ -43,6 +43,8 @@ class BatchManagerDashboard {
         this.batchInfo;
         /** @type {number} */
         this.wakeUp = 0;
+        
+        this.insufficientRamSkips = 0;
     }
     
     setSleep(duration) {
@@ -115,6 +117,11 @@ class BatchManagerDashboard {
         data.push({
             label: "# of Recoveries",
             value: this.numRecovery
+        })
+
+        data.push({
+            label: "RAM Skips",
+            value: this.insufficientRamSkips
         })
         
         if (this.batchInfo) {
@@ -263,6 +270,8 @@ export class BatchManager {
      * Gets the server to max money and min security.
      */
     async prepareServer() {
+        this.serverPool.setSharding(true); // Thread requirements high and we don't care about timings
+        this.serverPool.setPartialDeploy(true);
         while (
           this.ns.getServerSecurityLevel(this.target) >
           this.ns.getServerMinSecurityLevel(this.target)
@@ -304,6 +313,24 @@ export class BatchManager {
             await this.launchWeaken(weakenThreads, 0);
             await this.logSleep(this.executionBuffer + weakenTime);
         }
+        this.serverPool.setSharding(false);
+        this.serverPool.setPartialDeploy(false);
+    }
+    
+    /**
+     * @param {HWGWInfo} batchInfo
+     */
+    calculateRamRequirements(batchInfo) {
+        const singleWeakenRam = this.ns.getScriptRam(WEAKEN_SCRIPT);
+        const singleGrowRam = this.ns.getScriptRam(GROW_SCRIPT);
+        const singleHackRam = this.ns.getScriptRam(HACK_SCRIPT);
+
+        return (
+            batchInfo.hack.numThreads * singleHackRam
+            + batchInfo.firstWeaken.numThreads * singleWeakenRam 
+            + batchInfo.grow.numThreads * singleGrowRam
+            + batchInfo.secondWeaken.numThreads * singleWeakenRam
+        )
     }
 
     async run() {
@@ -314,10 +341,23 @@ export class BatchManager {
         this.dashboard.batchInfo = batchInfo;
 
         for (let i = 0;;i++) {
-            await this.launchHack(batchInfo.hack.numThreads, batchInfo.hack.delay);
-            await this.launchWeaken(batchInfo.firstWeaken.numThreads, batchInfo.firstWeaken.delay);
-            await this.launchGrow(batchInfo.grow.numThreads, batchInfo.grow.delay);
-            await this.launchWeaken(batchInfo.secondWeaken.numThreads, batchInfo.secondWeaken.delay);
+            const batchRamRequirements = this.calculateRamRequirements(batchInfo);
+            if (this.serverPool.getRemainingMemory() < batchRamRequirements) {
+                this.dashboard.insufficientRamSkips++;
+                this.dashboard.update();
+                await this.ns.sleep(this.executionBuffer * 10);
+                continue;
+            }
+
+            try {
+                await this.launchHack(batchInfo.hack.numThreads, batchInfo.hack.delay);
+                await this.launchWeaken(batchInfo.firstWeaken.numThreads, batchInfo.firstWeaken.delay);
+                await this.launchGrow(batchInfo.grow.numThreads, batchInfo.grow.delay);
+                await this.launchWeaken(batchInfo.secondWeaken.numThreads, batchInfo.secondWeaken.delay);
+            } catch (e) {
+                this.dashboard.insufficientRamSkips++;
+                this.dashboard.update();
+            }
             
             if (i % 10 === 0) {
                 this.dashboard.status = ManagerStatus.Batching;
@@ -333,6 +373,7 @@ export class BatchManager {
                 || (this.ns.getServerMoneyAvailable(this.target) < this.ns.getServerMaxMoney(this.target) * 0.25)
             ) {
                 this.dashboard.status = ManagerStatus.Recovering;
+                this.dashboard.batchNumber = i;
                 this.dashboard.numRecovery++;
                 await this.prepareServer();
             }
