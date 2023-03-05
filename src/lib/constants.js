@@ -13,3 +13,17 @@ export const CYCLE_TIME_WEIGHT = -1.8;
 export const WEAKEN_SCRIPT = '/lib/weaken.js';
 export const GROW_SCRIPT = '/lib/grow.js';
 export const HACK_SCRIPT = '/lib/hack.js';
+export const SUPPORT_LIBS = [
+    "/lib/metrics.js",
+    "/lib/publishing.js",
+    "/lib/log.js",
+    "/lib/constants.js"
+];
+
+
+export const Ports = {
+    PUBLISHING: 10,
+    METRICS: 20
+}
+
+export const EMPTY_PORT_VALUE = "NULL PORT DATA";
