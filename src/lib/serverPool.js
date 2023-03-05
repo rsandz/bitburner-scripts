@@ -1,3 +1,5 @@
+import { SUPPORT_LIBS } from '/lib/constants';
+
 /**
  * Class to aggregate multiple servers into a single pool
  * and manage operations on them.
@@ -159,6 +161,13 @@ export class ServerPool {
 	 * @param {Any[]} args
 	 */
 	_copyRun(scriptName, targetServer, threads, ...args) {
+		
+		SUPPORT_LIBS.forEach((lib) => {
+			if (!this.ns.scp(lib, targetServer)) {
+				throw new Error(`Failed to copy ${lib} to ${targetServer}`);
+			}
+		});
+
 		if (!this.ns.scp(scriptName, targetServer)) {
 			throw new Error(`Failed to copy ${scriptName} to ${targetServer}`);
 		}
