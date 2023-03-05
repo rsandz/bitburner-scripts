@@ -1,3 +1,4 @@
+import { HACK_TARGETS_LIST } from 'lib/constants';
 import { PublishingManager } from 'lib/publishing';
 
 /**
@@ -5,6 +6,6 @@ import { PublishingManager } from 'lib/publishing';
 */
 export async function main(ns) {
     ns.disableLog("ALL");
-    const manager = new PublishingManager(ns);
+    const manager = new PublishingManager(ns, JSON.parse(ns.read(HACK_TARGETS_LIST)));
     await manager.run();
 }
