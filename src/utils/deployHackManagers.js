@@ -41,7 +41,7 @@ export async function main(ns) {
     
     ns.disableLog("ALL");
     
-    startSupportingManagers(ns);
+    startSupportingManagers(ns, flagData.restart);
 
     /** @type {String[]} */
     const targets = JSON.parse(ns.read(targetFile));
@@ -107,7 +107,14 @@ export async function main(ns) {
  * e.g. Publishing and Metrics.
  * @param {import("../.").NS} ns
  */
-function startSupportingManagers(ns) {
+function startSupportingManagers(ns, restart) {
+    
+    if (restart) {
+        ns.scriptKill(METRICS_MANAGER_START_SCRIPT, ns.getHostname());
+        ns.scriptKill(PUBLISHING_MANAGER_START_SCRIPT, ns.getHostname());
+        ns.tprint("Killed Supporting Managers.");
+    }
+
     if (!ns.getRunningScript(METRICS_MANAGER_START_SCRIPT)) {
         if (ns.run(METRICS_MANAGER_START_SCRIPT) === 0) {
             throw new Error(`Failed to run Metrics Manager @ ${METRICS_MANAGER_START_SCRIPT}`);
