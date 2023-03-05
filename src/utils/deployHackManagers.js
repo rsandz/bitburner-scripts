@@ -1,5 +1,7 @@
 const TARGET_FILE = "/targetList.txt";
 const HACK_MANAGER_START_SCRIPT = '/utils/startHackManager.js';
+const METRICS_MANAGER_START_SCRIPT = '/utils/startMetricsManager.js';
+const PUBLISHING_MANAGER_START_SCRIPT = '/utils/startPublishingManager.js';
 
 /** @param {import("../.").NS} ns */
 function help(ns) {
@@ -38,6 +40,8 @@ export async function main(ns) {
     }
     
     ns.disableLog("ALL");
+    
+    startSupportingManagers(ns);
 
     /** @type {String[]} */
     const targets = JSON.parse(ns.read(targetFile));
@@ -95,6 +99,26 @@ export async function main(ns) {
         ns.tprint(`Killing process ${pid} hacking ${hackTarget}`);
         ns.kill(process.pid);
     })
+}
+
+/**
+ * Start managers that support hacking.
+ * 
+ * e.g. Publishing and Metrics.
+ * @param {import("../.").NS} ns
+ */
+function startSupportingManagers(ns) {
+    if (!ns.getRunningScript(METRICS_MANAGER_START_SCRIPT)) {
+        if (ns.run(METRICS_MANAGER_START_SCRIPT) === 0) {
+            throw new Error(`Failed to run Metrics Manager @ ${METRICS_MANAGER_START_SCRIPT}`);
+        }
+    }
+    if (!ns.getRunningScript(PUBLISHING_MANAGER_START_SCRIPT)) {
+        if (ns.run(PUBLISHING_MANAGER_START_SCRIPT) === 0) {
+            throw new Error(`Failed to run Publishing Manager @ ${PUBLISHING_MANAGER_START_SCRIPT}`);
+        }
+
+    }
 }
 
 export function autocomplete(data, args) {
