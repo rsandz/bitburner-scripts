@@ -16,6 +16,7 @@ export class ServerPool {
 		this.stagger = stagger;
 		this.logging = false;
 		this.sharding = true;
+		this.allowPartialDeploy = false;
 	}
 	
 	setLogging(enabled) {
@@ -24,6 +25,10 @@ export class ServerPool {
 	
 	setSharding(enabled) {
 		this.sharding = enabled;
+	}
+	
+	setPartialDeploy(enabled) {
+		this.allowPartialDeploy = enabled;
 	}
 	
 	log(msg) {
@@ -41,7 +46,8 @@ export class ServerPool {
 	}
 
 	getRemainingMemory() {
-		return this.getMaxMemory() - this.getUsedMemory();
+		const serverMemoryMapper = this.getServerRemainingRam.bind(this);
+		return this.servers.map(serverMemoryMapper).reduce((prev, curr) => prev + curr, 0);
 	}
 
 	/**
@@ -87,7 +93,7 @@ export class ServerPool {
 		const requiredMem = this.ns.getScriptRam(scriptName);
 		const [isDeployable, manifest] = this.getDeploymentManifest(requiredMem, threads);
 
-		if (!isDeployable) {
+		if (!this.allowPartialDeploy && !isDeployable) {
 			const remainingMem = this.getRemainingMemory();
 			throw new Error(`Not enough memory in pool to deploy ${threads} threads of ${scriptName}. Needs: ${requiredMem * threads} Gb. Have ${remainingMem} Gb`);
 		}
