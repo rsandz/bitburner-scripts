@@ -15,6 +15,7 @@ export class PublishingManager {
     constructor(ns, serverList = []) {
         this.ns = ns;
         this.serverList = serverList;
+        this.log = Logger.withDefaultConfig(ns);
     }
     
     getData() {
@@ -22,7 +23,10 @@ export class PublishingManager {
         
         this.serverList.forEach((server) => {
             data[server] = {
-                security: this.ns.getServerSecurityLevel(server)
+                security: this.ns.getServerSecurityLevel(server),
+                minSecurity: this.ns.getServerMinSecurityLevel(server),
+                money: this.ns.getServerMoneyAvailable(server),
+                maxMoney: this.ns.getServerMaxMoney(server)
             }
         });
         
@@ -30,8 +34,10 @@ export class PublishingManager {
     }
 
     async publish(data) {
-        await this.ns.writePort(Ports.PUBLISHING, JSON.stringify(data));
         this.ns.readPort(Ports.PUBLISHING); // Remove old data
+        await this.ns.writePort(Ports.PUBLISHING, JSON.stringify(data));
+        this.ns.clearLog();
+        this.log.info(JSON.stringify(data));
     }
 
     async run () {
